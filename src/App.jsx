@@ -1,4 +1,7 @@
 import React, { useState } from 'react'
+import { AppProvider } from './context/AppContext'
+import ErrorBoundary from './components/ErrorBoundary'
+import NotificationSystem from './components/NotificationSystem'
 import Navbar from './components/Navbar'
 import Sidebar from './components/Sidebar'
 import Dashboard from './components/Dashboard'
@@ -28,17 +31,22 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen gradient-bg">
-      <Navbar />
-      <div className="flex">
-        <Sidebar activeView={activeView} setActiveView={setActiveView} />
-        <main className="flex-1 p-6 ml-64">
-          <div className="max-w-screen-xl mx-auto">
-            {renderActiveView()}
+    <ErrorBoundary>
+      <AppProvider>
+        <div className="min-h-screen gradient-bg">
+          <Navbar />
+          <div className="flex">
+            <Sidebar activeView={activeView} setActiveView={setActiveView} />
+            <main className="flex-1 p-6 ml-64">
+              <div className="max-w-screen-xl mx-auto">
+                {renderActiveView()}
+              </div>
+            </main>
           </div>
-        </main>
-      </div>
-    </div>
+          <NotificationSystem />
+        </div>
+      </AppProvider>
+    </ErrorBoundary>
   )
 }
 
