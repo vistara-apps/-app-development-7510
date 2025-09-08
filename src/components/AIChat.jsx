@@ -1,7 +1,10 @@
 import React, { useState } from 'react'
-import { Bot, Send, User, Settings } from 'lucide-react'
+import { Bot, Send, User, Settings, AlertCircle } from 'lucide-react'
+import { openAIService, apiUtils } from '../services/api'
+import { useApp } from '../context/AppContext'
 
 const AIChat = () => {
+  const { state, actions } = useApp()
   const [messages, setMessages] = useState([
     { id: 1, type: 'bot', content: 'Hello! I\'m your AI assistant. How can I help you today?', timestamp: '2:30 PM' },
     { id: 2, type: 'user', content: 'What are your clinic hours?', timestamp: '2:31 PM' },
@@ -9,32 +12,81 @@ const AIChat = () => {
   ])
   const [inputMessage, setInputMessage] = useState('')
   const [isTyping, setIsTyping] = useState(false)
+  const [error, setError] = useState(null)
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return
 
+    const userMessage = inputMessage
     const newUserMessage = {
       id: messages.length + 1,
       type: 'user',
-      content: inputMessage,
+      content: userMessage,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
 
     setMessages(prev => [...prev, newUserMessage])
     setInputMessage('')
     setIsTyping(true)
+    setError(null)
 
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+      // Check if API is configured
+      if (!apiUtils.validateConfig()) {
+        throw new Error('AI service not configured. Please check your API settings.')
+      }
+
+      // Generate AI response using OpenAI
+      const aiResponse = await openAIService.generateChatResponse(userMessage)
+      
       const botResponse = {
         id: messages.length + 2,
         type: 'bot',
-        content: generateBotResponse(inputMessage),
+        content: aiResponse,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }
+      
       setMessages(prev => [...prev, botResponse])
+      
+      // Log the message interaction
+      actions.addMessage({
+        content: userMessage,
+        direction: 'incoming',
+        type: 'text',
+        providerId: state.currentProvider?.providerId || 'demo',
+        patientId: 'web_visitor_' + Date.now()
+      })
+      
+      actions.addMessage({
+        content: aiResponse,
+        direction: 'outgoing',
+        type: 'text',
+        providerId: state.currentProvider?.providerId || 'demo',
+        patientId: 'web_visitor_' + Date.now()
+      })
+      
+    } catch (error) {
+      console.error('AI Chat Error:', error)
+      setError(apiUtils.handleApiError(error, 'AI Chat'))
+      
+      // Fallback to mock response
+      const fallbackResponse = {
+        id: messages.length + 2,
+        type: 'bot',
+        content: generateBotResponse(userMessage),
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+      setMessages(prev => [...prev, fallbackResponse])
+      
+      // Show error notification
+      actions.addNotification({
+        type: 'warning',
+        title: 'AI Service Unavailable',
+        message: 'Using fallback responses. Please check your API configuration.'
+      })
+    } finally {
       setIsTyping(false)
-    }, 1500)
+    }
   }
 
   const generateBotResponse = (message) => {
@@ -125,6 +177,19 @@ const AIChat = () => {
                         <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
                         <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                       </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {error && (
+                <div className="flex justify-start">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
+                      <AlertCircle size={16} className="text-white" />
+                    </div>
+                    <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-lg">
+                      <p className="text-red-400 text-sm">{error}</p>
                     </div>
                   </div>
                 </div>

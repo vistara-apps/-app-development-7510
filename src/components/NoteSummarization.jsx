@@ -1,10 +1,15 @@
 import React, { useState } from 'react'
-import { FileText, Upload, Zap, CheckCircle, Clock } from 'lucide-react'
+import { FileText, Upload, Zap, CheckCircle, Clock, AlertCircle } from 'lucide-react'
+import { openAIService, apiUtils } from '../services/api'
+import { useApp } from '../context/AppContext'
 
 const NoteSummarization = () => {
+  const { state, actions } = useApp()
   const [noteText, setNoteText] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [summary, setSummary] = useState('')
+  const [error, setError] = useState(null)
+  const [processingTime, setProcessingTime] = useState(null)
 
   const recentNotes = [
     {
@@ -40,13 +45,61 @@ const NoteSummarization = () => {
     if (!noteText.trim()) return
 
     setIsProcessing(true)
+    setError(null)
+    setSummary('')
+    const startTime = Date.now()
     
-    // Simulate AI processing
-    setTimeout(() => {
+    try {
+      // Check if API is configured
+      if (!apiUtils.validateConfig()) {
+        throw new Error('AI service not configured. Please check your API settings.')
+      }
+
+      // Generate AI summary using OpenAI
+      const aiSummary = await openAIService.summarizeNotes(noteText)
+      const endTime = Date.now()
+      const processingTimeMs = endTime - startTime
+      
+      setSummary(aiSummary)
+      setProcessingTime(processingTimeMs)
+      
+      // Save the note to the app state
+      const noteData = {
+        rawContent: noteText,
+        summary: aiSummary,
+        providerId: state.currentProvider?.providerId || 'demo',
+        patientId: 'demo_patient_' + Date.now(),
+        processingTime: processingTimeMs,
+        status: 'final'
+      }
+      
+      const savedNote = actions.addNote(noteData)
+      
+      // Show success notification
+      actions.addNotification({
+        type: 'success',
+        title: 'Note Summarized',
+        message: `Successfully processed ${noteText.split(' ').length} words in ${(processingTimeMs / 1000).toFixed(1)}s`
+      })
+      
+    } catch (error) {
+      console.error('Note Summarization Error:', error)
+      setError(apiUtils.handleApiError(error, 'Note Summarization'))
+      
+      // Fallback to mock summary
       const mockSummary = generateMockSummary(noteText)
       setSummary(mockSummary)
+      setProcessingTime(Date.now() - startTime)
+      
+      // Show error notification
+      actions.addNotification({
+        type: 'warning',
+        title: 'AI Service Unavailable',
+        message: 'Using fallback summarization. Please check your API configuration.'
+      })
+    } finally {
       setIsProcessing(false)
-    }, 3000)
+    }
   }
 
   const generateMockSummary = (text) => {
